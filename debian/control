@@ -21,7 +21,7 @@ Build-Depends:
  libglib2.0-dev,
  libxrender-dev,
  libgsettings-qt-dev,
- libqt6svg6-dev,
+ qt6-svg-dev,
  libxi-dev,
  libcups2-dev,
  libgtest-dev,
