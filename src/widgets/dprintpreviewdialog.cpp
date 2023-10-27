@@ -27,6 +27,7 @@
 #include <DScrollArea>
 #include <DScrollBar>
 #include <DPlatformWindowHandle>
+#include <DIconTheme>
 #include <QPluginLoader>
 
 #include <QHBoxLayout>
@@ -214,7 +215,7 @@ void DPrintPreviewDialogPrivate::initleft(QVBoxLayout *layout)
     layout->addLayout(pbottomlayout);
     firstBtn = new DIconButton(DStyle::SP_ArrowPrev);
     prevPageBtn = new DIconButton(DStyle::SP_ArrowLeft);
-    firstBtn->setIcon(QIcon::fromTheme("printer_original"));
+    firstBtn->setIcon(DIconTheme::findQIcon("printer_original"));
     firstBtn->setEnabled(false);
     prevPageBtn->setEnabled(false);
     jumpPageEdit = new DSpinBox;
@@ -227,7 +228,7 @@ void DPrintPreviewDialogPrivate::initleft(QVBoxLayout *layout)
     originTotalPageLabel->setEnabled(false);
     nextPageBtn = new DIconButton(DStyle::SP_ArrowRight);
     lastBtn = new DIconButton(DStyle::SP_ArrowNext);
-    lastBtn->setIcon(QIcon::fromTheme("printer_final"));
+    lastBtn->setIcon(DIconTheme::findQIcon("printer_final"));
     pbottomlayout->addStretch();
     pbottomlayout->addWidget(firstBtn);
     pbottomlayout->addSpacing(10);
@@ -278,7 +279,7 @@ void DPrintPreviewDialogPrivate::initright(QVBoxLayout *layout)
 
     advanceBtn = new DPushButton(qApp->translate("DPrintPreviewDialogPrivate", "Advanced"));
     advanceBtn->setLayoutDirection(Qt::RightToLeft);
-    advanceBtn->setIcon(QIcon::fromTheme("printer_dropdown"));
+    advanceBtn->setIcon(DIconTheme::findQIcon("printer_dropdown"));
     advanceBtn->setIconSize(QSize(12, 12));
     DPalette pa = advanceBtn->palette();
     pa.setColor(DPalette::ButtonText, pa.link().color());
@@ -407,10 +408,10 @@ void DPrintPreviewDialogPrivate::initbasicui()
     QVBoxLayout *orientationlayout = new QVBoxLayout;
     orientationlayout->setContentsMargins(0, 0, 0, 0);
     DRadioButton *verRadio = new DRadioButton;
-    verRadio->setIcon(QIcon::fromTheme("printer_portrait"));
+    verRadio->setIcon(DIconTheme::findQIcon("printer_portrait"));
     verRadio->setIconSize(QSize(36, 36));
     DRadioButton *horRadio = new DRadioButton;
-    horRadio->setIcon(QIcon::fromTheme("printer_landscape"));
+    horRadio->setIcon(DIconTheme::findQIcon("printer_landscape"));
     horRadio->setIconSize(QSize(36, 36));
     orientationgroup = new QButtonGroup(q);
     orientationgroup->addButton(verRadio, 0);
@@ -687,11 +688,11 @@ void DPrintPreviewDialogPrivate::initadvanceui()
     DToolButton *tblrBtn = new DToolButton;
     DToolButton *tbrlBtn = new DToolButton;
     DToolButton *repeatBtn = new DToolButton;
-    lrtbBtn->setIcon(QIcon::fromTheme("printer_lrtb_1"));
-    rltbBtn->setIcon(QIcon::fromTheme("printer_lrtb_2"));
-    tblrBtn->setIcon(QIcon::fromTheme("printer_lrtb_3"));
-    tbrlBtn->setIcon(QIcon::fromTheme("printer_lrtb_4"));
-    repeatBtn->setIcon(QIcon::fromTheme("printer_lrtb_5"));
+    lrtbBtn->setIcon(DIconTheme::findQIcon("printer_lrtb_1"));
+    rltbBtn->setIcon(DIconTheme::findQIcon("printer_lrtb_2"));
+    tblrBtn->setIcon(DIconTheme::findQIcon("printer_lrtb_3"));
+    tbrlBtn->setIcon(DIconTheme::findQIcon("printer_lrtb_4"));
+    repeatBtn->setIcon(DIconTheme::findQIcon("printer_lrtb_5"));
     DWidget *btnWidget = new DWidget;
     directGroup = new QButtonGroup(q);
     QHBoxLayout *btnLayout = new QHBoxLayout(btnWidget);
@@ -1289,11 +1290,11 @@ void DPrintPreviewDialogPrivate::showadvancesetting()
     if (advancesettingwdg->isHidden()) {
         advancesettingwdg->show();
         advanceBtn->setText(qApp->translate("DPrintPreviewDialogPrivate", "Collapse"));
-        advanceBtn->setIcon(QIcon::fromTheme("printer_dropup"));
+        advanceBtn->setIcon(DIconTheme::findQIcon("printer_dropup"));
     } else {
         advancesettingwdg->hide();
         advanceBtn->setText(qApp->translate("DPrintPreviewDialogPrivate", "Advanced"));
-        advanceBtn->setIcon(QIcon::fromTheme("printer_dropdown"));
+        advanceBtn->setIcon(DIconTheme::findQIcon("printer_dropdown"));
     }
 }
 
@@ -1663,6 +1664,9 @@ void DPrintPreviewDialogPrivate::_q_printerChanged(int index)
     paperSizeCombo->clear();
     paperSizeCombo->blockSignals(true);
     QString currentName = printDeviceCombo->itemText(index);
+    colorModeCombo->blockSignals(true);
+    colorModeCombo->clear();
+    colorModeCombo->blockSignals(false);
     if (isActualPrinter(currentName)) {
         //actual printer
         if (printer) {
@@ -1681,10 +1685,6 @@ void DPrintPreviewDialogPrivate::_q_printerChanged(int index)
         //判断当前打印机是否支持彩色打印，不支持彩色打印删除彩色打印选择选项，pdf不做判断
         QPlatformPrinterSupport *ps = QPlatformPrinterSupportPlugin::get();
         QPrintDevice currentDevice = ps->createPrintDevice(printDeviceCombo->currentText());
-        // Keep previous selection.
-        const int selectColorIndex = 0;
-        bool previousPrinterSelectColor = (supportedColorMode && (selectColorIndex == colorModeCombo->currentIndex()));
-        colorModeCombo->clear();
         supportedColorMode = false;
         if (currentDevice.supportedColorModes().contains(QPrint::Color)) {
             if (!isInited) {
@@ -1695,6 +1695,8 @@ void DPrintPreviewDialogPrivate::_q_printerChanged(int index)
             }
             colorModeCombo->blockSignals(true);
             colorModeCombo->addItem(qApp->translate("DPrintPreviewDialogPrivate", "Color"));
+            // Ensure that the signal CurrentIndexChanged is triggered afterwards
+            colorModeCombo->setCurrentIndex(-1);
             colorModeCombo->blockSignals(false);
             updateSubControlSettings(DPrintPreviewSettingInfo::PS_ColorMode);
             supportedColorMode = true;
@@ -1702,6 +1704,8 @@ void DPrintPreviewDialogPrivate::_q_printerChanged(int index)
         if (currentDevice.supportedColorModes().contains(QPrint::GrayScale)) {
             colorModeCombo->blockSignals(true);
             colorModeCombo->addItem(qApp->translate("DPrintPreviewDialogPrivate", "Grayscale"));
+            // Ensure that the signal CurrentIndexChanged is triggered afterwards
+            colorModeCombo->setCurrentIndex(-1);
             colorModeCombo->blockSignals(false);
             updateSubControlSettings(DPrintPreviewSettingInfo::PS_ColorMode);
             waterColor = QColor("#6f6f6f");
@@ -1712,12 +1716,6 @@ void DPrintPreviewDialogPrivate::_q_printerChanged(int index)
         if (supportedColorMode) {
             colorModeCombo->setCurrentText(qApp->translate("DPrintPreviewDialogPrivate", "Color"));
             settingHelper->setSubControlEnabled(DPrintPreviewSettingInterface::SC_Watermark_TextColor, true);
-
-            // Refresh the current print ColorMode, clear() and blockSignals() cause
-            // the current ColorMode to be inconsistent with currentIndex().
-            if (previousPrinterSelectColor) {
-                _q_ColorModeChange(selectColorIndex);
-            }
         } else {
             colorModeCombo->setCurrentText(qApp->translate("DPrintPreviewDialogPrivate", "Grayscale"));
             settingHelper->setSubControlEnabled(DPrintPreviewSettingInterface::SC_Watermark_TextColor, false);
@@ -1730,8 +1728,11 @@ void DPrintPreviewDialogPrivate::_q_printerChanged(int index)
         duplexCombo->clear();
         settingHelper->setSubControlEnabled(DPrintPreviewSettingInterface::SC_DuplexWidget, false);
         settingHelper->setSubControlEnabled(DPrintPreviewSettingInterface::SC_Watermark_TextColor, true);
-        if (colorModeCombo->count() == 1)
-            colorModeCombo->insertItem(0, qApp->translate("DPrintPreviewDialogPrivate", "Color"));
+        colorModeCombo->blockSignals(true);
+        colorModeCombo->addItem(qApp->translate("DPrintPreviewDialogPrivate", "Color"));
+        colorModeCombo->addItem(qApp->translate("DPrintPreviewDialogPrivate", "Grayscale"));
+        // Ensure that the signal CurrentIndexChanged is triggered afterwards
+        colorModeCombo->setCurrentIndex(-1);
         updateSubControlSettings(DPrintPreviewSettingInfo::PS_ColorMode);
         colorModeCombo->blockSignals(false);
         colorModeCombo->setCurrentIndex(0);
