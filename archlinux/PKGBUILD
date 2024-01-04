@@ -24,10 +24,10 @@ build() {
   cmake \
     -GNinja \
     -DDTK_VERSION=$version \
-    -DMKSPECS_INSTALL_DIR=lib/qt/mkspecs/modules/ \
+    -DMKSPECS_INSTALL_DIR=lib/qt6/mkspecs/modules/ \
     -DBUILD_PLUGINS=OFF \
     -DBUILD_DOCS=ON \
-    -DQCH_INSTALL_DESTINATION=share/doc/qt \
+    -DQCH_INSTALL_DESTINATION=share/doc/qt6 \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_BUILD_TYPE=Release

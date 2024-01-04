@@ -43,7 +43,6 @@ Description: deepin graphical user interface library
 
 Package: libdtk6widget-bin
 Architecture: any
-Build-Profiles: <!nobin>
 Depends: ${shlibs:Depends}, ${misc:Depends}, libdtk6widget (= ${binary:Version})
 Description: deepin graphical user interface library utilities
  DtkWidget is deepin graphical user interface for deepin desktop development.
