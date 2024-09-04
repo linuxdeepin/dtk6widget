@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2019 - 2023 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2019 - 2024 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -1339,8 +1339,17 @@ void DStyle::drawPrimitive(const QStyle *style, DStyle::PrimitiveElement pe, con
             //先绘画阴影
             DDrawUtils::drawShadow(p, btn->rect + shadow_margin, frameRadius, frameRadius, QColor(0, 0, 0, 0.25 * 255), shadowRadius, QPoint(offsetX, offsetY));
             //再绘画上面的待显示区域
-            p->setPen(QPen(btn->dpalette.frameShadowBorder(), 1));
+            p->setPen(Qt::NoPen);
             p->setBrush(btn->noBackground ? Qt::NoBrush : p->background());
+            p->drawRoundedRect(opt->rect, frameRadius, frameRadius);
+
+            p->setBrush(Qt::NoBrush);
+            QPen pen;
+            pen.setWidth(1);
+            pen.setColor(DGuiApplicationHelper::instance()->themeType() == DGuiApplicationHelper::DarkType
+                         ? QColor(255, 255, 255, int(0.1 * 255))
+                         : QColor(0, 0, 0, int(0.12 * 255)));
+            p->setPen(pen);
             p->drawRoundedRect(opt->rect, frameRadius, frameRadius);
         }
         break;
@@ -1443,9 +1452,6 @@ void DStyle::drawControl(const QStyle *style, DStyle::ControlElement ce, const Q
             DStyleOptionButton option = *btn;
             option.dpalette = btn->dpalette;
             option.rect = dstyle.subElementRect(SE_SwitchButtonGroove, opt, w);
-            dstyle.drawPrimitive(PE_SwitchButtonGroove, &option, p, w);
-            option.rect = dstyle.subElementRect(SE_SwitchButtonHandle, opt, w);
-            dstyle.drawPrimitive(PE_SwitchButtonHandle, &option, p, w);
 
             if (btn->state & State_HasFocus) {
                 QStyleOptionFocusRect fropt;
@@ -1487,7 +1493,6 @@ void DStyle::drawControl(const QStyle *style, DStyle::ControlElement ce, const Q
     case CE_ButtonBoxButton: {
         if (const DStyleOptionButton *btn = qstyleoption_cast<const DStyleOptionButton *>(opt)) {
             DStyleHelper dstyle(style);
-            dstyle.drawControl(CE_ButtonBoxButtonBevel, btn, p, w);
             DStyleOptionButton subopt = *btn;
             if (btn->features & DStyleOptionButton::HasDciIcon)
                 subopt.dciIcon = btn->dciIcon;
@@ -1498,6 +1503,7 @@ void DStyle::drawControl(const QStyle *style, DStyle::ControlElement ce, const Q
                     DStyleOptionButtonBoxButton fropt;
                     fropt = *boxbtn;
                     fropt.rect = dstyle.subElementRect(SE_ButtonBoxButtonFocusRect, btn, w);
+                    fropt.position = DStyleOptionButtonBoxButton::OnlyOne;
                     style->drawPrimitive(PE_FrameFocusRect, &fropt, p, w);
                 }
             }
@@ -1572,6 +1578,14 @@ void DStyle::drawControl(const QStyle *style, DStyle::ControlElement ce, const Q
         break;
     }
     case CE_ButtonBoxButtonLabel: {
+        if (opt->state & StateFlag::State_MouseOver) {
+            constexpr qreal hoverScale = 1.2; // hover 时放大1.2倍
+            p->scale(hoverScale, hoverScale);
+            p->setRenderHint(QPainter::SmoothPixmapTransform);
+            p->translate((1 - hoverScale) * (opt->rect.x() + opt->rect.width() / 2) / hoverScale
+                       , (1 - hoverScale) * (opt->rect.y() + opt->rect.height() / 2) / hoverScale);
+        }
+
         style->drawControl(CE_PushButtonLabel, opt, p, w);
         break;
     }
