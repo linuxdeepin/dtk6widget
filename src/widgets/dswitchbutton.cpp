@@ -3,14 +3,18 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "dswitchbutton.h"
-#include <DStyle>
-#include <DStyleOptionButton>
 #include "private/dswitchbutton_p.h"
+
+#include <DStyleOptionButton>
+#include <DStyle>
+#include <DDciIcon>
+#include <DGuiApplicationHelper>
 
 #include <QApplication>
 
-
 DWIDGET_BEGIN_NAMESPACE
+
+constexpr int DCI_ICON_SIZE = 120;
 
 /*!
 @~english
@@ -48,12 +52,16 @@ QSize DSwitchButton::sizeHint() const
  */
 void DSwitchButton::paintEvent(QPaintEvent *e)
 {
+    D_D(DSwitchButton);
     Q_UNUSED(e);
 
     DStylePainter painter(this);
     DStyleOptionButton opt;
     initStyleOption(&opt);
     painter.drawControl(DStyle::CE_SwitchButton, opt);
+
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    painter.drawImage(rect().adjusted(4, -8, -4, 8), d->player.currentImage());          // 为了显示按钮的阴影所留的空白
 }
 
 /*!
@@ -108,7 +116,38 @@ void DSwitchButtonPrivate::init()
     q->setObjectName("DSwitchButton");
     q->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     q->setCheckable(true);
-    q->connect(q, &DSwitchButton::toggled, q, &DSwitchButton::checkedChanged);
+    
+    auto initPlayer= [this, q]() {
+        DDciIcon icon = !checked ? DDciIcon::fromTheme("switch_on") : DDciIcon::fromTheme("switch_off");
+        player.setIcon(icon);
+        player.setMode(DDciIcon::Mode::Normal);
+        auto palette = DDciIconPalette::fromQPalette(q->palette());
+        player.setPalette(palette);
+        player.setDevicePixelRatio(qApp->devicePixelRatio());
+        player.setIconSize(DCI_ICON_SIZE);
+        player.setTheme(DGuiApplicationHelper::instance()->themeType() == DGuiApplicationHelper::DarkType
+                        ? DDciIcon::Dark : DDciIcon::Light);
+    };
+
+    initPlayer();
+
+    q->connect(q, &DSwitchButton::toggled, q, [q, this](bool ckd) {
+        if (checked == ckd)
+            return;
+
+        checked = ckd;
+        DDciIcon icon = checked ? DDciIcon::fromTheme("switch_on") : DDciIcon::fromTheme("switch_off");
+        player.setIcon(icon);
+        player.play(DDciIcon::Mode::Normal);
+
+        Q_EMIT q->checkedChanged(checked);
+    });
+
+    q->connect(&player, &DDciIconPlayer::updated, q, [q]() {
+        q->update();
+    });
+
+    q->connect(DGuiApplicationHelper::instance(), &DGuiApplicationHelper::themeTypeChanged, q, initPlayer);
 }
 
 DWIDGET_END_NAMESPACE
