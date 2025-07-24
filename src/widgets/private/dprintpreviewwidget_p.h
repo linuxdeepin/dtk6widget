@@ -16,6 +16,7 @@
 #include <QPicture>
 #include <qmath.h>
 #include <QBasicTimer>
+#include <QFont>
 
 DWIDGET_BEGIN_NAMESPACE
 
@@ -55,6 +56,46 @@ private Q_SLOTS:
 private:
     DIconButton *scaleResetButton;
     double scaleRatio;
+};
+
+// 基底水印图元类
+class BaseWatermarkItem : public QGraphicsItem
+{
+public:
+    BaseWatermarkItem(QGraphicsItem *parent = nullptr) : QGraphicsItem(parent) {
+        m_font.setFamily("SourceHanSansSC");
+        m_font.setPointSize(12);
+        m_color.setRgb(0, 0, 0, 60);
+    }
+
+    void setBoundingRect(const QRectF &rect) {
+        if (m_rect != rect) {
+            prepareGeometryChange();
+            m_rect = rect;
+            update();
+        }
+    }
+
+    void setText(const QString &text) {
+        if (m_text != text) {
+            prepareGeometryChange();
+            m_text = text;
+            update();
+        }
+    }
+
+    QRectF boundingRect() const override {
+        return m_rect;
+    }
+
+    void updateBaseWatermark();
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
+
+private:
+    QString m_text;
+    QRectF m_rect;
+    QFont m_font;
+    QColor m_color;
 };
 
 class ContentItem : public QGraphicsItem
@@ -303,6 +344,7 @@ public:
     QList<QGraphicsItem *> pages;
     QGraphicsRectItem *background;
     WaterMark *waterMark;
+    BaseWatermarkItem *baseWatermarkItem = nullptr;
     QVector<int> pageRange; // 选择的页码
     int currentPageNumber = 0; // 处理以后当前页，值一定是连续的，比如处理共10页，那么取值就是1到10
     DPrinter::ColorMode colorMode;

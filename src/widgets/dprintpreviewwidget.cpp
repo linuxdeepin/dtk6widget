@@ -15,6 +15,7 @@
 
 #include <cups/cups.h>
 #include <cups/ppd.h>
+#include <pwd.h>
 
 
 #define FIRST_PAGE 1
@@ -26,6 +27,9 @@
 #define TWO_ROW_THREE_COL_PAGES 6
 #define THREE_ROW_THREE_COL_PAGES 9
 #define FOUR_ROW_FOUR_COL_PAGES 16
+#define DATE_TIME_FORMAT "yyyy-MM-dd hh:mm:ss"
+#define USER_USEC_CONFIG_FILE "/etc/usec/default/contexts/default_mls_type"
+#define USEC_STRICT_MODE_FILE "/sys/kernel/security/usec/strict_mode"
 
 #define WATER_DEFAULTFONTSIZE 65
 #define WATER_TEXTSPACE WATER_DEFAULTFONTSIZE
@@ -60,6 +64,83 @@ static void saveImageToFile(int index, const QString &outPutFileName, const QStr
     });
 }
 
+
+//优先从环境变量中获取，如果环境变量为空，则通过系统调用获取。
+static QString getUserInfo(const QString &envVar, std::function<QString()> fallback) {
+    QString value = qgetenv(envVar.toUtf8());
+    if (value.isEmpty() && fallback) {
+        value = fallback();
+    }
+    return value;
+}
+
+static QString getUserName() {
+    return getUserInfo("USER", []() {
+        struct passwd *pw = getpwuid(getuid());
+        return pw ? QString::fromLocal8Bit(pw->pw_name) : QString();
+    });
+}
+
+static QString getUserId() {
+    return getUserInfo("UID", []() {
+        return QString::number(getuid());
+    });
+}
+
+// 获取用户的安全标签
+static QPair<int, int> getUserSecurityLabel() {
+    QPair<int, int> securityLabel = qMakePair(-1, -1);
+    QFile file(USER_USEC_CONFIG_FILE);
+    if (!file.exists()) {
+        qWarning() << "Failed to open default_mls_type file:" << file.fileName();
+        return securityLabel;
+    }
+
+    bool res = file.open(QIODevice::ReadOnly | QIODevice::Text);
+    if (!res) {
+        qWarning() << "Failed to open file:" << file.fileName();
+        file.close();
+        return securityLabel;
+    }
+
+    QString userName = getUserName();
+    QString defaultSmodel;
+    QString hexString;
+    QTextStream in(&file);
+
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if (line.startsWith(userName + " ")) {
+            hexString = line.split(' ').value(1).trimmed();
+            break;
+        }else if (line.startsWith("default ")) {
+            defaultSmodel = line.split(' ').value(1).trimmed();
+        }
+    }
+
+    if (!hexString.isEmpty() && hexString.startsWith("0x")) {
+        bool ok;
+        quint32 hexValue = hexString.mid(2).toUInt(&ok, 16);
+        if (ok) {
+            int ilevel = (hexValue >> 16) & 0xFF;
+            int slevel = hexValue & 0xFF;
+            securityLabel = qMakePair(ilevel, slevel);
+        }
+    }else if (defaultSmodel.startsWith("0x")) {
+        bool ok;
+        quint32 hexValue = defaultSmodel.mid(2).toUInt(&ok, 16);
+        if (ok) {
+            int ilevel = (hexValue >> 16) & 0xFF;
+            int slevel = hexValue & 0xFF;
+            securityLabel = qMakePair(ilevel, slevel);
+        }
+    } else {
+        qWarning() << "Invalid security label format in file:" << file.fileName();
+    }
+    file.close();
+    return securityLabel;
+}
+
 DPrintPreviewWidgetPrivate::DPrintPreviewWidgetPrivate(DPrintPreviewWidget *qq)
     : DFramePrivate(qq)
     , imposition(DPrintPreviewWidget::One)
@@ -92,6 +173,15 @@ void DPrintPreviewWidgetPrivate::init()
     background = new QGraphicsRectItem();
     background->setZValue(-1);
     scene->addItem(background);
+
+    QFile file(USEC_STRICT_MODE_FILE);
+    file.open(QIODevice::ReadOnly | QIODevice::Text);
+    if (file.exists() && file.readLine().trimmed() == "1") {
+        baseWatermarkItem = new BaseWatermarkItem();
+        scene->addItem(baseWatermarkItem);
+        baseWatermarkItem->setZValue(2);
+        file.close();
+    }
 
     waterMark = new WaterMark;
     scene->addItem(waterMark);
@@ -143,6 +233,10 @@ void DPrintPreviewWidgetPrivate::populateScene()
     }
 
     waterMark->setBoundingRect(pageRect);
+    if (baseWatermarkItem) {
+        baseWatermarkItem->updateBaseWatermark();
+        baseWatermarkItem->setBoundingRect(pageRect);
+    }
 
     scene->setSceneRect(QRect(QPoint(0, 0), paperSize));
 }
@@ -418,11 +512,19 @@ void DPrintPreviewWidgetPrivate::printSinglePageDrawUtil(QPainter *painter, cons
     }
     // 绘制水印
     if (!waterImage.isNull()) {
+        painter->save();
         painter->resetTransform();
         painter->translate(translateSize.width() / 2, translateSize.height() / 2);
         painter->rotate(waterMark->rotation());
-
         painter->drawImage(-waterImage.width() / 2, -waterImage.height() / 2, waterImage);
+        painter->restore();
+    }
+
+    // 绘制基底水印
+    if (baseWatermarkItem) {
+        QRectF boundingRect = QRectF(QPointF(0, 0), translateSize);
+        baseWatermarkItem->setBoundingRect(boundingRect);
+        baseWatermarkItem->paint(painter, nullptr, nullptr);
     }
 
     painter->restore();
@@ -460,6 +562,16 @@ void DPrintPreviewWidgetPrivate::printMultiPageDrawUtil(QPainter *painter, const
     // 绘制并打水印 此时不能再设置缩放比
     if (!waterImage.isNull())
         painter->drawImage(leftTop, waterImage);
+
+    // 绘制基底水印
+    if (baseWatermarkItem) {
+        painter->save();
+        QRect pageRect = previewPrinter->pageLayout().paintRectPixels(previewPrinter->resolution());
+        QRectF boundingRect = QRectF(leftTop, previewPrinter->pageLayout().paintRectPixels(previewPrinter->resolution()).size());
+        baseWatermarkItem->setBoundingRect(boundingRect);
+        baseWatermarkItem->paint(painter, nullptr, nullptr);
+        painter->restore();
+    }
 }
 
 void DPrintPreviewWidgetPrivate::print(bool printAsPicture)
@@ -2085,6 +2197,40 @@ void DPrinter::setPreviewMode(bool isPreview)
 QList<const QPicture *> DPrinter::getPrinterPages()
 {
     return d_ptr->previewPages();
+}
+
+
+void BaseWatermarkItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
+{
+    Q_UNUSED(option);
+    Q_UNUSED(widget);
+
+    if (m_text.isEmpty() ||  m_rect.isEmpty()) {
+        return;
+    }
+
+    painter->save();
+    painter->setPen(m_color);
+    painter->setFont(m_font);
+    //将水印文字绘制在底部
+    painter->drawText(m_rect.adjusted(0, 0, 0, -50), Qt::AlignBottom | Qt::AlignHCenter, m_text);
+    painter->restore();
+}
+
+void BaseWatermarkItem::updateBaseWatermark()
+{
+    // 更新水印文字内容
+    prepareGeometryChange();
+    QString userName = getUserName();
+    QString userId = getUserId();
+    QPair<int,int> securityLabel = getUserSecurityLabel();
+    QString timeStr = QDateTime::currentDateTime().toString(DATE_TIME_FORMAT);
+    QString waterMarkText = QString("时间: %1\n"
+                                    "用户: %2  UID: %3\n"
+                                    "ilevel_%4    slevel_%5")
+                                    .arg(timeStr, userName, userId, QString::number(securityLabel.first), QString::number(securityLabel.second));
+    m_text = waterMarkText;
+    update();
 }
 
 void PageItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
