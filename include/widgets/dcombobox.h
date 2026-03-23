@@ -26,6 +26,7 @@ protected:
     // QComboBox interface
 public:
     virtual void showPopup() override;
+    virtual bool eventFilter(QObject *watched, QEvent *event) override;
 };
 
 DWIDGET_END_NAMESPACE

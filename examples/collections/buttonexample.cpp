@@ -36,6 +36,9 @@ DWIDGET_USE_NAMESPACE
 ButtonExampleWindow::ButtonExampleWindow(QWidget *parent)
     : PageWindowInterface(parent)
 {
+    addExampleWindow(new DComboBoxExample(this));
+    addExampleWindow(new DFontComboBoxExample(this));
+    addExampleWindow(new DSearchComboBoxExample(this));
     addExampleWindow(new DPushButtonExample(this));
     addExampleWindow(new DWarningButtonExample(this));
     addExampleWindow(new DSuggestButtonExample(this));
@@ -46,9 +49,6 @@ ButtonExampleWindow::ButtonExampleWindow(QWidget *parent)
     addExampleWindow(new DSwitchButtonExample(this));
     addExampleWindow(new DRadioButtonExample(this));
     addExampleWindow(new DCheckButtonExample(this));
-    addExampleWindow(new DComboBoxExample(this));
-    addExampleWindow(new DFontComboBoxExample(this));
-    addExampleWindow(new DSearchComboBoxExample(this));
 }
 
 DPushButtonExample::DPushButtonExample(QWidget *parent)

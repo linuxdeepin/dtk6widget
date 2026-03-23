@@ -4,6 +4,7 @@
 
 #include "dcombobox.h"
 #include "private/dcombobox_p.h"
+#include <qlogging.h>
 
 #ifndef emit
 #define emit Q_EMIT
@@ -17,10 +18,12 @@
 #include <private/qguiapplication_p.h>
 #include <qpa/qplatformtheme.h>
 
+#include <QAbstractItemView>
 #include <QListView>
 #include <QTableView>
 #include <QItemDelegate>
 #include <QTreeView>
+#include <QMouseEvent>
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 #include <QDesktopWidget>
 #endif
@@ -149,7 +152,13 @@ void DComboBox::showPopup()
     };
     // When the value of maxVisibleItems() is less than 16, use the default value of qt and return it directly to avoid displaying excess whitespace
     QComboBoxPrivateContainer *container = this->findChild<QComboBoxPrivateContainer *>();
-    if (getRowCount() <= maxVisibleItems() || !container)
+    if (!container)
+        return QComboBox::showPopup();
+
+    // Fix hover highlight residue: clear highlight when mouse leaves item area
+    container->installEventFilter(this);
+
+    if (getRowCount() <= maxVisibleItems())
         return QComboBox::showPopup();
 
     // Calculate maximum height by maximum item size
@@ -261,6 +270,22 @@ void DComboBox::showPopup()
     int offset = mapToGlobal(rect().topLeft()).y() - currentIndexTopLeft.y();
     int newY = qMax(screen.top(), qMin(container->y() + offset, screen.bottom() - container->height()));
     container->move(container->x(), newY);
+}
+
+bool DComboBox::eventFilter(QObject *watched, QEvent *event)
+{
+    if (event->type() == QEvent::Leave) {
+        QComboBoxPrivateContainer *container = this->findChild<QComboBoxPrivateContainer *>();
+        if (watched == container) {
+            // When the mouse leaves the container: set currentIndex to invalid and clear selection highlight
+            QAbstractItemView *v = view();
+            if (v->currentIndex().isValid()) {
+                v->setCurrentIndex(QModelIndex());
+            }
+        }
+    }
+
+    return QComboBox::eventFilter(watched, event);
 }
 
 DWIDGET_END_NAMESPACE

@@ -7,6 +7,7 @@
 
 #include "dcombobox.h"
 #include <DObjectPrivate>
+#include <QPersistentModelIndex>
 
 DWIDGET_BEGIN_NAMESPACE
 
